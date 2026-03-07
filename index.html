@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Radiology Analytics - Fixed Order</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/luxon/3.4.4/luxon.min.js"></script>
+    
+    <style>
+        :root {
+            --primary-bg: #f8f9fa;
+            --accent-blue: #0056b3;
+            --accent-green: #198754;
+            --total-yellow: #fefae0;
+        }
+
+        body {
+            font-family: 'Calibri', 'Segoe UI', sans-serif;
+            background-color: var(--primary-bg);
+            margin: 20px;
+        }
+
+        .container {
+            max-width: 1300px;
+            margin: 0 auto;
+            background: white;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+
+        /* Tabs */
+        .tabs-header {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            border-bottom: 2px solid #dee2e6;
+            margin-bottom: 20px;
+        }
+        .tab-btn {
+            padding: 10px 18px;
+            cursor: pointer;
+            background: #e9ecef;
+            border: 1px solid #dee2e6;
+            border-bottom: none;
+            border-radius: 6px 6px 0 0;
+            font-weight: 500;
+        }
+        .tab-btn.active {
+            background: white;
+            border-bottom: 2px solid white;
+            margin-bottom: -2px;
+            color: var(--accent-blue);
+            font-weight: bold;
+        }
+
+        /* Tables */
+        .table-wrapper { overflow-x: auto; margin-bottom: 40px; }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            border: 1px solid #dee2e6;
+            padding: 12px;
+            text-align: center;
+        }
+        th { background: #f1f3f5; }
+        tr.total-row { 
+            background-color: var(--total-yellow) !important; 
+            font-weight: bold; 
+        }
+        tr:nth-child(even) { background-color: #fafafa; }
+
+        .section-title { border-left: 5px solid #0056b3; padding-left: 15px; margin-top: 30px; }
+        #upload-zone {
+            padding: 30px;
+            border: 2px dashed #007bff;
+            text-align: center;
+            margin-bottom: 30px;
+            background: #f0f7ff;
+        }
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div id="upload-zone">
+        <h2>Radiology Analytics Dashboard</h2>
+        <p>Select <strong>AllStudies.csv</strong></p>
+        <input type="file" id="csvPicker" accept=".csv">
+    </div>
+
+    <div id="main-ui" class="hidden">
+        <div class="tabs-header" id="tabContainer">
+            <div class="tab-btn active" onclick="showTab('summary-view', this)">XR Stats Summary</div>
+        </div>
+
+        <div id="summary-view" class="tab-content">
+            <h2 class="section-title">1. Monthly Totals (All Modalities - by Reported By)</h2>
+            <div id="out-all" class="table-wrapper"></div>
+
+            <h2 class="section-title" style="border-color: var(--accent-green); color: var(--accent-green);">2. Monthly Totals (Modality 'R' - by Verif By)</h2>
+            <div id="out-r-month" class="table-wrapper"></div>
+
+            <h2 class="section-title" style="border-color: var(--accent-blue); color: var(--accent-blue);" id="title-7day">3. Prior 7-Day Running Total</h2>
+            <div id="out-r-7day" class="table-wrapper"></div>
+        </div>
+
+        <div id="individual-view-container"></div>
+    </div>
+</div>
+
+<script>
+    // PRESERVED ORDER
+    const NAME_MAP = {
+        "7659567": "E.L", 
+        "7668654": "S.R", 
+        "7727570": "S.H",
+        "7842120": "Q.O", 
+        "7785803": "M.M", 
+        "7848633": "K.A",
+        "7846731": "A.O", 
+        "7461820": "C.M", 
+        "7750701": "S.A"
+    };
+    
+    // Explicit array to ensure order is never lost
+    const ORDERED_NAMES = ["E.L", "S.R", "S.H", "Q.O", "M.M", "K.A", "A.O", "C.M", "S.A"];
+    
+    const DateTime = luxon.DateTime;
+
+    document.getElementById('csvPicker').addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+        Papa.parse(file, {
+            header: true,
+            skipEmptyLines: true,
+            complete: function(results) { processData(results.data); }
+        });
+    });
+
+    function processData(rawData) {
+        const data = rawData.map(row => {
+            const dt = DateTime.fromFormat(row['Verify Date'], 'd/M/yyyy');
+            return {
+                ...row,
+                dt: dt,
+                monthYear: dt.isValid ? dt.toFormat('MMMM yyyy') : 'Invalid',
+                reportedName: NAME_MAP[String(row['Reported by']).trim()],
+                verifName: NAME_MAP[String(row['Verif By']).trim()]
+            };
+        }).filter(d => d.dt.isValid && d['Modality'] !== 'Z');
+
+        const months = [...new Set(data.map(d => d.monthYear))].sort((a, b) => 
+            DateTime.fromFormat(a, 'MMMM yyyy') - DateTime.fromFormat(b, 'MMMM yyyy')
+        );
+
+        // 1. All Modalities (Reported By) - FIXED ORDER
+        const allRows = ORDERED_NAMES.map(name => {
+            const row = [name];
+            months.forEach(m => {
+                row.push(data.filter(d => d.reportedName === name && d.monthYear === m).length);
+            });
+            return row;
+        });
+        renderTable('out-all', ['Registrar', ...months], allRows);
+
+        // 2. Modality R Monthly (Verif By) - FIXED ORDER
+        const rData = data.filter(d => d['Modality'] === 'R');
+        const rRows = ORDERED_NAMES.map(name => {
+            const row = [name];
+            months.forEach(m => {
+                row.push(rData.filter(d => d.verifName === name && d.monthYear === m).length);
+            });
+            return row;
+        });
+        renderTable('out-r-month', ['Registrar', ...months], rRows);
+
+        // 3. 7-Day Running (Verif By) - FIXED ORDER
+        const maxDate = DateTime.max(...data.map(d => d.dt));
+        const cutoff = maxDate.minus({ days: 7 });
+        document.getElementById('title-7day').innerText = `3. Prior 7-Day Running Total (Modality 'R' to ${maxDate.toFormat('dd/MM')})`;
+        
+        const r7Rows = ORDERED_NAMES.map(name => {
+            const count = rData.filter(d => d.verifName === name && d.dt > cutoff).length;
+            return [name, count];
+        });
+        renderTable('out-r-7day', ['Registrar', 'Count'], r7Rows);
+
+        setupIndividualTabs(data);
+        document.getElementById('main-ui').classList.remove('hidden');
+    }
+
+    function renderTable(divId, headers, rows) {
+        const div = document.getElementById(divId);
+        const colTotals = new Array(headers.length - 1).fill(0);
+        
+        rows.forEach(r => {
+            for(let i=1; i < r.length; i++) colTotals[i-1] += r[i];
+        });
+
+        let html = `<table><thead><tr>`;
+        headers.forEach(h => html += `<th>${h}</th>`);
+        html += `</tr></thead><tbody>`;
+        
+        rows.forEach(r => {
+            html += `<tr>`;
+            r.forEach(cell => html += `<td>${cell}</td>`);
+            html += `</tr>`;
+        });
+        
+        // Add Total Row at the bottom
+        html += `<tr class="total-row"><td>TOTAL</td>`;
+        colTotals.forEach(t => html += `<td>${t}</td>`);
+        html += `</tr></tbody></table>`;
+        
+        div.innerHTML = html;
+    }
+
+    function setupIndividualTabs(data) {
+        const tabContainer = document.getElementById('tabContainer');
+        const viewContainer = document.getElementById('individual-view-container');
+        document.querySelectorAll('.dyn-tab').forEach(n => n.remove());
+        viewContainer.innerHTML = '';
+
+        ORDERED_NAMES.forEach(name => {
+            const btn = document.createElement('div');
+            btn.className = 'tab-btn dyn-tab';
+            btn.innerText = name;
+            const tabId = `tab-view-${name.replace('.','')}`;
+            btn.onclick = (e) => showTab(tabId, e.target);
+            tabContainer.appendChild(btn);
+
+            const view = document.createElement('div');
+            view.id = tabId;
+            view.className = 'tab-content hidden';
+            
+            const subset = data.filter(d => d.reportedName === name);
+            if (subset.length === 0) {
+                view.innerHTML = `<p style="padding:20px;">No records found for ${name}.</p>`;
+            } else {
+                const modalities = [...new Set(data.map(d => d['Modality']))].sort();
+                const months = [...new Set(subset.map(d => d.monthYear))].sort((a, b) => 
+                    DateTime.fromFormat(a, 'MMMM yyyy') - DateTime.fromFormat(b, 'MMMM yyyy')
+                );
+                const rows = months.map(m => {
+                    const row = [m];
+                    modalities.forEach(mod => row.push(subset.filter(d => d.monthYear === m && d['Modality'] === mod).length));
+                    return row;
+                });
+                const tableId = `ind-table-${name.replace('.','')}`;
+                view.innerHTML = `<h2 class="section-title">Breakdown for ${name}</h2><div id="${tableId}"></div>`;
+                viewContainer.appendChild(view);
+                renderTable(tableId, ['Month', ...modalities], rows);
+            }
+            viewContainer.appendChild(view);
+        });
+    }
+
+    function showTab(tabId, element) {
+        document.querySelectorAll('.tab-content').forEach(t => t.classList.add('hidden'));
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById(tabId).classList.remove('hidden');
+        element.classList.add('active');
+    }
+</script>
+</body>
+</html>
