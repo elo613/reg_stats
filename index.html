@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Radiology Analytics - Fixed Order</title>
+    <title>Radiology Analytics - Dual Source</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/luxon/3.4.4/luxon.min.js"></script>
     
@@ -12,23 +12,61 @@
             --primary-bg: #f8f9fa;
             --accent-blue: #0056b3;
             --accent-green: #198754;
+            --accent-purple: #6f42c1;
             --total-yellow: #fefae0;
+            --total-col-blue: #e1f5fe;
         }
 
         body {
-            font-family: 'Calibri', 'Segoe UI', sans-serif;
+            font-family: 'Segoe UI', 'Calibri', sans-serif;
             background-color: var(--primary-bg);
             margin: 20px;
         }
 
         .container {
-            max-width: 1300px;
+            max-width: 1400px;
             margin: 0 auto;
             background: white;
             padding: 25px;
             border-radius: 12px;
             box-shadow: 0 4px 15px rgba(0,0,0,0.1);
         }
+
+        #upload-zone {
+            padding: 30px;
+            border: 2px dashed #007bff;
+            text-align: center;
+            margin-bottom: 30px;
+            background: #f0f7ff;
+            border-radius: 8px;
+        }
+
+        .file-inputs {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin: 20px 0;
+        }
+
+        .file-box {
+            background: white;
+            padding: 15px;
+            border: 1px solid #ced4da;
+            border-radius: 6px;
+        }
+
+        button#processBtn {
+            padding: 12px 30px;
+            font-size: 1.1em;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        button#processBtn:hover { background: #0056b3; }
 
         /* Tabs */
         .tabs-header {
@@ -56,31 +94,31 @@
         }
 
         /* Tables */
-        .table-wrapper { overflow-x: auto; margin-bottom: 40px; }
+        .table-wrapper { 
+            overflow-x: auto; 
+            max-height: 400px; 
+            overflow-y: auto; 
+            margin-bottom: 30px; 
+            border: 1px solid #dee2e6;
+        }
         table {
             width: 100%;
             border-collapse: collapse;
+            font-size: 0.95em;
         }
         th, td {
             border: 1px solid #dee2e6;
-            padding: 12px;
+            padding: 10px;
             text-align: center;
+            min-width: 80px;
         }
-        th { background: #f1f3f5; }
-        tr.total-row { 
-            background-color: var(--total-yellow) !important; 
-            font-weight: bold; 
-        }
-        tr:nth-child(even) { background-color: #fafafa; }
-
-        .section-title { border-left: 5px solid #0056b3; padding-left: 15px; margin-top: 30px; }
-        #upload-zone {
-            padding: 30px;
-            border: 2px dashed #007bff;
-            text-align: center;
-            margin-bottom: 30px;
-            background: #f0f7ff;
-        }
+        th { background: #f1f3f5; position: sticky; top: 0; z-index: 10; }
+        
+        /* Highlighting */
+        tr.total-row { background-color: var(--total-yellow) !important; font-weight: bold; }
+        td.total-col { background-color: var(--total-col-blue); font-weight: bold; }
+        
+        .section-title { border-left: 5px solid #0056b3; padding-left: 15px; margin-top: 30px; margin-bottom: 10px; }
         .hidden { display: none; }
     </style>
 </head>
@@ -89,8 +127,17 @@
 <div class="container">
     <div id="upload-zone">
         <h2>Radiology Analytics Dashboard</h2>
-        <p>Select <strong>AllStudies.csv</strong></p>
-        <input type="file" id="csvPicker" accept=".csv">
+        <div class="file-inputs">
+            <div class="file-box">
+                <label><strong>Select R1.csv:</strong></label><br><br>
+                <input type="file" id="csvPicker1" accept=".csv">
+            </div>
+            <div class="file-box">
+                <label><strong>Select R2.csv:</strong></label><br><br>
+                <input type="file" id="csvPicker2" accept=".csv">
+            </div>
+        </div>
+        <button id="processBtn">Process Analytics</button>
     </div>
 
     <div id="main-ui" class="hidden">
@@ -99,14 +146,14 @@
         </div>
 
         <div id="summary-view" class="tab-content">
-            <h2 class="section-title">1. Monthly Totals (All Modalities - by Reported By)</h2>
-            <div id="out-all" class="table-wrapper"></div>
+            <h2 class="section-title">1. Monthly Total Reported (Rep 1 + Rep 2) - Modality 'R'</h2>
+            <div id="out-combined-reported" class="table-wrapper"></div>
 
-            <h2 class="section-title" style="border-color: var(--accent-green); color: var(--accent-green);">2. Monthly Totals (Modality 'R' - by Verif By)</h2>
-            <div id="out-r-month" class="table-wrapper"></div>
+            <h2 class="section-title" style="border-color: var(--accent-green); color: var(--accent-green);">2. Monthly Total Verified - Modality 'R'</h2>
+            <div id="out-verif-monthly" class="table-wrapper"></div>
 
             <h2 class="section-title" style="border-color: var(--accent-blue); color: var(--accent-blue);" id="title-7day">3. Prior 7-Day Running Total</h2>
-            <div id="out-r-7day" class="table-wrapper"></div>
+            <div id="out-verif-7day" class="table-wrapper"></div>
         </div>
 
         <div id="individual-view-container"></div>
@@ -114,117 +161,143 @@
 </div>
 
 <script>
-    // PRESERVED ORDER
     const NAME_MAP = {
-        "7659567": "E.L", 
-        "7668654": "S.R", 
-        "7727570": "S.H",
-        "7842120": "Q.O", 
-        "7785803": "M.M", 
-        "7848633": "K.A",
-        "7846731": "A.O", 
-        "7461820": "C.M", 
-        "7750701": "S.A"
+        "7659567": "E.L", "7668654": "S.R", "7727570": "S.H",
+        "7842120": "Q.O", "7785803": "M.M", "7848633": "K.A",
+        "7846731": "A.O", "7461820": "C.M", "7750701": "S.A"
     };
     
-    // Explicit array to ensure order is never lost
     const ORDERED_NAMES = ["E.L", "S.R", "S.H", "Q.O", "M.M", "K.A", "A.O", "C.M", "S.A"];
-    
     const DateTime = luxon.DateTime;
 
-    document.getElementById('csvPicker').addEventListener('change', function(e) {
-        const file = e.target.files[0];
-        if (!file) return;
-        Papa.parse(file, {
-            header: true,
-            skipEmptyLines: true,
-            complete: function(results) { processData(results.data); }
+    document.getElementById('processBtn').addEventListener('click', async function() {
+        const file1 = document.getElementById('csvPicker1').files[0];
+        const file2 = document.getElementById('csvPicker2').files[0];
+
+        if (!file1 || !file2) {
+            alert("Please select both R1 and R2 CSV files.");
+            return;
+        }
+
+        const data1 = await parseFile(file1);
+        const data2 = await parseFile(file2);
+        
+        // Merge and De-duplicate by Accession
+        let combinedData = [...data1, ...data2];
+        const seenAccessions = new Set();
+        combinedData = combinedData.filter(item => {
+            const acc = item.Accession?.trim();
+            if (!acc || seenAccessions.has(acc)) return false;
+            seenAccessions.add(acc);
+            return true;
         });
+
+        processAnalytics(combinedData);
     });
 
-    function processData(rawData) {
+    function parseFile(file) {
+        return new Promise((resolve) => {
+            Papa.parse(file, {
+                header: true,
+                skipEmptyLines: true,
+                complete: (results) => resolve(results.data)
+            });
+        });
+    }
+
+    function processAnalytics(rawData) {
         const data = rawData.map(row => {
             const dt = DateTime.fromFormat(row['Verify Date'], 'd/M/yyyy');
             return {
                 ...row,
                 dt: dt,
-                monthYear: dt.isValid ? dt.toFormat('MMMM yyyy') : 'Invalid',
-                reportedName: NAME_MAP[String(row['Reported by']).trim()],
+                monthYear: dt.isValid ? dt.toFormat('MMMM yyyy') : null,
+                sortKey: dt.isValid ? dt.toFormat('yyyyMM') : '0',
+                rep1Name: NAME_MAP[String(row['Reported by']).trim()],
+                rep2Name: NAME_MAP[String(row['Reported by2']).trim()],
                 verifName: NAME_MAP[String(row['Verif By']).trim()]
             };
-        }).filter(d => d.dt.isValid && d['Modality'] !== 'Z');
+        }).filter(d => d.monthYear && d['Modality'] !== 'Z');
 
         const months = [...new Set(data.map(d => d.monthYear))].sort((a, b) => 
-            DateTime.fromFormat(a, 'MMMM yyyy') - DateTime.fromFormat(b, 'MMMM yyyy')
+            data.find(d => d.monthYear === a).sortKey - data.find(d => d.monthYear === b).sortKey
         );
 
-        // 1. All Modalities (Reported By) - FIXED ORDER
-        const allRows = ORDERED_NAMES.map(name => {
-            const row = [name];
-            months.forEach(m => {
-                row.push(data.filter(d => d.reportedName === name && d.monthYear === m).length);
-            });
-            return row;
-        });
-        renderTable('out-all', ['Registrar', ...months], allRows);
-
-        // 2. Modality R Monthly (Verif By) - FIXED ORDER
+        // 1. Summary: Monthly Reported Modality 'R'
         const rData = data.filter(d => d['Modality'] === 'R');
-        const rRows = ORDERED_NAMES.map(name => {
+        const summaryRepRows = ORDERED_NAMES.map(name => {
             const row = [name];
             months.forEach(m => {
-                row.push(rData.filter(d => d.verifName === name && d.monthYear === m).length);
+                const count = rData.filter(d => (d.rep1Name === name || d.rep2Name === name) && d.monthYear === m).length;
+                row.push(count);
             });
             return row;
         });
-        renderTable('out-r-month', ['Registrar', ...months], rRows);
+        renderTable('out-combined-reported', ['Registrar', ...months], summaryRepRows);
 
-        // 3. 7-Day Running (Verif By) - FIXED ORDER
+        // 2. Summary: Monthly Verified Modality 'R'
+        const summaryVerifRows = ORDERED_NAMES.map(name => {
+            const row = [name];
+            months.forEach(m => {
+                const count = rData.filter(d => d.verifName === name && d.monthYear === m).length;
+                row.push(count);
+            });
+            return row;
+        });
+        renderTable('out-verif-monthly', ['Registrar', ...months], summaryVerifRows);
+
+        // 3. Summary: 7-Day Running
         const maxDate = DateTime.max(...data.map(d => d.dt));
         const cutoff = maxDate.minus({ days: 7 });
-        document.getElementById('title-7day').innerText = `3. Prior 7-Day Running Total (Modality 'R' to ${maxDate.toFormat('dd/MM')})`;
-        
-        const r7Rows = ORDERED_NAMES.map(name => {
+        document.getElementById('title-7day').innerText = `3. Prior 7-Day Running Total (Verified 'R' to ${maxDate.toFormat('dd/MM')})`;
+        const summary7DayRows = ORDERED_NAMES.map(name => {
             const count = rData.filter(d => d.verifName === name && d.dt > cutoff).length;
             return [name, count];
         });
-        renderTable('out-r-7day', ['Registrar', 'Count'], r7Rows);
+        renderTable('out-verif-7day', ['Registrar', 'Count'], summary7DayRows);
 
         setupIndividualTabs(data);
         document.getElementById('main-ui').classList.remove('hidden');
+        document.getElementById('upload-zone').style.display = 'none';
     }
 
-    function renderTable(divId, headers, rows) {
-        const div = document.getElementById(divId);
-        const colTotals = new Array(headers.length - 1).fill(0);
-        
-        rows.forEach(r => {
-            for(let i=1; i < r.length; i++) colTotals[i-1] += r[i];
-        });
+    function renderTable(containerId, headers, rows) {
+        const container = (typeof containerId === 'string') ? document.getElementById(containerId) : containerId;
+        const colTotals = new Array(headers.length).fill(0);
+        const hasHorizontalTotal = !headers.includes('Count'); // Summary 7-day doesn't need row totals
 
         let html = `<table><thead><tr>`;
         headers.forEach(h => html += `<th>${h}</th>`);
+        if(hasHorizontalTotal) html += `<th style="background: var(--total-col-blue)">TOTAL</th>`;
         html += `</tr></thead><tbody>`;
-        
+
         rows.forEach(r => {
+            let rowSum = 0;
             html += `<tr>`;
-            r.forEach(cell => html += `<td>${cell}</td>`);
+            r.forEach((cell, idx) => {
+                html += `<td>${cell}</td>`;
+                if(idx > 0) {
+                    colTotals[idx] += (Number(cell) || 0);
+                    rowSum += (Number(cell) || 0);
+                }
+            });
+            if(hasHorizontalTotal) html += `<td class="total-col">${rowSum}</td>`;
             html += `</tr>`;
         });
-        
-        // Add Total Row at the bottom
+
+        // Footer Row
         html += `<tr class="total-row"><td>TOTAL</td>`;
-        colTotals.forEach(t => html += `<td>${t}</td>`);
+        for(let i=1; i < colTotals.length; i++) html += `<td>${colTotals[i]}</td>`;
+        if(hasHorizontalTotal) html += `<td></td>`; // The bottom-right empty cell
         html += `</tr></tbody></table>`;
-        
-        div.innerHTML = html;
+
+        container.innerHTML = html;
     }
 
     function setupIndividualTabs(data) {
         const tabContainer = document.getElementById('tabContainer');
         const viewContainer = document.getElementById('individual-view-container');
-        document.querySelectorAll('.dyn-tab').forEach(n => n.remove());
-        viewContainer.innerHTML = '';
+        const modalities = [...new Set(data.map(d => d['Modality']))].sort();
 
         ORDERED_NAMES.forEach(name => {
             const btn = document.createElement('div');
@@ -237,25 +310,44 @@
             const view = document.createElement('div');
             view.id = tabId;
             view.className = 'tab-content hidden';
-            
-            const subset = data.filter(d => d.reportedName === name);
-            if (subset.length === 0) {
-                view.innerHTML = `<p style="padding:20px;">No records found for ${name}.</p>`;
-            } else {
-                const modalities = [...new Set(data.map(d => d['Modality']))].sort();
+
+            const s1 = data.filter(d => d.rep1Name === name);
+            const s2 = data.filter(d => d.rep2Name === name);
+            const sCombined = data.filter(d => d.rep1Name === name || d.rep2Name === name);
+
+            const generateSections = (title, subset, color) => {
+                const titleEl = document.createElement('h3');
+                titleEl.className = 'section-title';
+                titleEl.style.borderColor = color;
+                titleEl.innerText = title;
+                view.appendChild(titleEl);
+
+                const wrapper = document.createElement('div');
+                wrapper.className = 'table-wrapper';
+                view.appendChild(wrapper);
+
+                if(subset.length === 0) {
+                    wrapper.innerHTML = "<p style='padding:10px'>No data recorded.</p>";
+                    return;
+                }
+
                 const months = [...new Set(subset.map(d => d.monthYear))].sort((a, b) => 
-                    DateTime.fromFormat(a, 'MMMM yyyy') - DateTime.fromFormat(b, 'MMMM yyyy')
+                    data.find(d => d.monthYear === a).sortKey - data.find(d => d.monthYear === b).sortKey
                 );
+
                 const rows = months.map(m => {
-                    const row = [m];
-                    modalities.forEach(mod => row.push(subset.filter(d => d.monthYear === m && d['Modality'] === mod).length));
-                    return row;
+                    const r = [m];
+                    modalities.forEach(mod => r.push(subset.filter(d => d.monthYear === m && d['Modality'] === mod).length));
+                    return r;
                 });
-                const tableId = `ind-table-${name.replace('.','')}`;
-                view.innerHTML = `<h2 class="section-title">Breakdown for ${name}</h2><div id="${tableId}"></div>`;
-                viewContainer.appendChild(view);
-                renderTable(tableId, ['Month', ...modalities], rows);
-            }
+
+                renderTable(wrapper, ['Month', ...modalities], rows);
+            };
+
+            generateSections(`1. Reports as 'Reported By' (Primary)`, s1, 'var(--accent-blue)');
+            generateSections(`2. Reports as 'Reported By 2' (Secondary)`, s2, 'var(--accent-green)');
+            generateSections(`3. Total Studies (Primary + Secondary Combined)`, sCombined, 'var(--accent-purple)');
+
             viewContainer.appendChild(view);
         });
     }
