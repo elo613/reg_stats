@@ -119,6 +119,7 @@
         td.total-col { background-color: var(--total-col-blue); font-weight: bold; }
         
         .section-title { border-left: 5px solid #0056b3; padding-left: 15px; margin-top: 30px; margin-bottom: 10px; }
+        .exam-title { margin: 10px 0 5px 20px; color: #555; font-size: 1em; font-weight: 600; }
         .hidden { display: none; }
     </style>
 </head>
@@ -127,6 +128,7 @@
 <div class="container">
     <div id="upload-zone">
         <h2>Radiology Analytics Dashboard</h2>
+        <p>Upload your report files to generate registrar performance statistics.</p>
         <div class="file-inputs">
             <div class="file-box">
                 <label><strong>Select R1.csv:</strong></label><br><br>
@@ -264,7 +266,7 @@
     function renderTable(containerId, headers, rows) {
         const container = (typeof containerId === 'string') ? document.getElementById(containerId) : containerId;
         const colTotals = new Array(headers.length).fill(0);
-        const hasHorizontalTotal = !headers.includes('Count'); // Summary 7-day doesn't need row totals
+        const hasHorizontalTotal = !headers.includes('Count'); 
 
         let html = `<table><thead><tr>`;
         headers.forEach(h => html += `<th>${h}</th>`);
@@ -288,7 +290,7 @@
         // Footer Row
         html += `<tr class="total-row"><td>TOTAL</td>`;
         for(let i=1; i < colTotals.length; i++) html += `<td>${colTotals[i]}</td>`;
-        if(hasHorizontalTotal) html += `<td></td>`; // The bottom-right empty cell
+        if(hasHorizontalTotal) html += `<td></td>`; 
         html += `</tr></tbody></table>`;
 
         container.innerHTML = html;
@@ -298,6 +300,10 @@
         const tabContainer = document.getElementById('tabContainer');
         const viewContainer = document.getElementById('individual-view-container');
         const modalities = [...new Set(data.map(d => d['Modality']))].sort();
+
+        // Clear existing dynamic tabs if processing again
+        document.querySelectorAll('.dyn-tab').forEach(el => el.remove());
+        viewContainer.innerHTML = '';
 
         ORDERED_NAMES.forEach(name => {
             const btn = document.createElement('div');
@@ -331,17 +337,36 @@
                     return;
                 }
 
+                // Table 1: Modality Breakdown
                 const months = [...new Set(subset.map(d => d.monthYear))].sort((a, b) => 
                     data.find(d => d.monthYear === a).sortKey - data.find(d => d.monthYear === b).sortKey
                 );
 
-                const rows = months.map(m => {
+                const modRows = months.map(m => {
                     const r = [m];
                     modalities.forEach(mod => r.push(subset.filter(d => d.monthYear === m && d['Modality'] === mod).length));
                     return r;
                 });
+                renderTable(wrapper, ['Month', ...modalities], modRows);
 
-                renderTable(wrapper, ['Month', ...modalities], rows);
+                // Table 2: Examination Breakdown
+                const examTitle = document.createElement('div');
+                examTitle.className = 'exam-title';
+                examTitle.innerText = "Breakdown by Examination Name";
+                view.appendChild(examTitle);
+
+                const examWrapper = document.createElement('div');
+                examWrapper.className = 'table-wrapper';
+                examWrapper.style.maxHeight = "300px"; // Constrain height for exam list
+                view.appendChild(examWrapper);
+
+                const examTypes = [...new Set(subset.map(d => d['Examination'] || 'Unspecified'))].sort();
+                const examRows = examTypes.map(type => {
+                    const count = subset.filter(d => d['Examination'] === type).length;
+                    return [type, count];
+                });
+
+                renderTable(examWrapper, ['Examination Type', 'Count'], examRows);
             };
 
             generateSections(`1. Reports as 'Reported By' (Primary)`, s1, 'var(--accent-blue)');
