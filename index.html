@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Radiology Analytics - Dual Source</title>
+    <title>Radiology Analytics - Search Focus</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/luxon/3.4.4/luxon.min.js"></script>
     
@@ -55,30 +55,25 @@
             border-radius: 6px;
         }
 
-        button#processBtn {
-            padding: 12px 30px;
-            font-size: 1.1em;
-            background: #007bff;
-            color: white;
-            border: none;
+        button {
+            padding: 10px 20px;
             border-radius: 6px;
             cursor: pointer;
-            transition: background 0.2s;
+            border: none;
+            transition: 0.2s;
         }
 
-        button#processBtn:hover { background: #0056b3; }
+        #processBtn { background: #007bff; color: white; font-size: 1.1em; }
+        #processBtn:hover { background: #0056b3; }
 
-        /* Tabs */
         .tabs-header {
             display: flex;
-            flex-wrap: wrap;
             gap: 4px;
             border-bottom: 2px solid #dee2e6;
             margin-bottom: 20px;
         }
         .tab-btn {
             padding: 10px 18px;
-            cursor: pointer;
             background: #e9ecef;
             border: 1px solid #dee2e6;
             border-bottom: none;
@@ -93,7 +88,24 @@
             font-weight: bold;
         }
 
-        /* Tables */
+        /* Search Bar Styling */
+        .search-container {
+            background: #f1f3f5;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        #searchID {
+            padding: 10px;
+            width: 250px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        #searchBtn { background: var(--accent-purple); color: white; }
+
         .table-wrapper { 
             overflow-x: auto; 
             max-height: 400px; 
@@ -110,17 +122,15 @@
             border: 1px solid #dee2e6;
             padding: 10px;
             text-align: center;
-            min-width: 80px;
         }
         th { background: #f1f3f5; position: sticky; top: 0; z-index: 10; }
         
-        /* Highlighting */
         tr.total-row { background-color: var(--total-yellow) !important; font-weight: bold; }
         td.total-col { background-color: var(--total-col-blue); font-weight: bold; }
         
         .section-title { border-left: 5px solid #0056b3; padding-left: 15px; margin-top: 30px; margin-bottom: 10px; }
-        .exam-title { margin: 10px 0 5px 20px; color: #555; font-size: 1em; font-weight: 600; }
         .hidden { display: none; }
+        #registrar-display-name { color: var(--accent-purple); font-weight: bold; }
     </style>
 </head>
 <body>
@@ -128,37 +138,43 @@
 <div class="container">
     <div id="upload-zone">
         <h2>Radiology Analytics Dashboard</h2>
-        <p>Upload your report files to generate registrar performance statistics.</p>
         <div class="file-inputs">
-            <div class="file-box">
-                <label><strong>Select R1.csv:</strong></label><br><br>
-                <input type="file" id="csvPicker1" accept=".csv">
-            </div>
-            <div class="file-box">
-                <label><strong>Select R2.csv:</strong></label><br><br>
-                <input type="file" id="csvPicker2" accept=".csv">
-            </div>
+            <div class="file-box"><label>R1.csv</label><br><input type="file" id="csvPicker1" accept=".csv"></div>
+            <div class="file-box"><label>R2.csv</label><br><input type="file" id="csvPicker2" accept=".csv"></div>
         </div>
         <button id="processBtn">Process Analytics</button>
     </div>
 
     <div id="main-ui" class="hidden">
-        <div class="tabs-header" id="tabContainer">
-            <div class="tab-btn active" onclick="showTab('summary-view', this)">XR Stats Summary</div>
+        <div class="tabs-header">
+            <button class="tab-btn active" onclick="showTab('summary-view', this)">XR Stats Summary</button>
+            <button class="tab-btn" onclick="showTab('search-view', this)">Registrar Search</button>
         </div>
 
         <div id="summary-view" class="tab-content">
-            <h2 class="section-title">1. Monthly Total Reported (Rep 1 + Rep 2) - Modality 'R'</h2>
+            <h2 class="section-title">1. Monthly Total Reported (Modality 'R')</h2>
             <div id="out-combined-reported" class="table-wrapper"></div>
 
-            <h2 class="section-title" style="border-color: var(--accent-green); color: var(--accent-green);">2. Monthly Total Verified - Modality 'R'</h2>
+            <h2 class="section-title" style="border-color: var(--accent-green);">2. Monthly Total Verified (Modality 'R')</h2>
             <div id="out-verif-monthly" class="table-wrapper"></div>
 
-            <h2 class="section-title" style="border-color: var(--accent-blue); color: var(--accent-blue);" id="title-7day">3. Prior 7-Day Running Total</h2>
+            <h2 class="section-title" style="border-color: var(--accent-blue);" id="title-7day">3. Prior 7-Day Running Total</h2>
             <div id="out-verif-7day" class="table-wrapper"></div>
         </div>
 
-        <div id="individual-view-container"></div>
+        <div id="search-view" class="tab-content hidden">
+            <div class="search-container">
+                <label for="searchID"><strong>Enter Reporter ID:</strong></label>
+                <input type="text" id="searchID" placeholder="e.g. 7659567">
+                <button id="searchBtn">Search Results</button>
+            </div>
+            <div id="search-results-area" class="hidden">
+                <h2 class="section-title" style="border-color: var(--accent-purple);">
+                    Showing Results for: <span id="registrar-display-name"></span>
+                </h2>
+                <div id="search-tables-container"></div>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -171,20 +187,19 @@
     
     const ORDERED_NAMES = ["E.L", "S.R", "S.H", "Q.O", "M.M", "K.A", "A.O", "C.M", "S.A"];
     const DateTime = luxon.DateTime;
+    let globalProcessedData = [];
+    let globalMonths = [];
 
     document.getElementById('processBtn').addEventListener('click', async function() {
         const file1 = document.getElementById('csvPicker1').files[0];
         const file2 = document.getElementById('csvPicker2').files[0];
 
-        if (!file1 || !file2) {
-            alert("Please select both R1 and R2 CSV files.");
-            return;
-        }
+        if (!file1 || !file2) return alert("Please select both files.");
 
         const data1 = await parseFile(file1);
         const data2 = await parseFile(file2);
         
-        // Merge and De-duplicate by Accession
+        // Merge and De-duplicate
         let combinedData = [...data1, ...data2];
         const seenAccessions = new Set();
         combinedData = combinedData.filter(item => {
@@ -194,194 +209,146 @@
             return true;
         });
 
-        processAnalytics(combinedData);
+        runMainAnalytics(combinedData);
     });
 
     function parseFile(file) {
-        return new Promise((resolve) => {
-            Papa.parse(file, {
-                header: true,
-                skipEmptyLines: true,
-                complete: (results) => resolve(results.data)
-            });
-        });
+        return new Promise((res) => Papa.parse(file, {header:true, skipEmptyLines:true, complete:(r)=>res(r.data)}));
     }
 
-    function processAnalytics(rawData) {
-        const data = rawData.map(row => {
+    function runMainAnalytics(rawData) {
+        globalProcessedData = rawData.map(row => {
             const dt = DateTime.fromFormat(row['Verify Date'], 'd/M/yyyy');
             return {
                 ...row,
                 dt: dt,
                 monthYear: dt.isValid ? dt.toFormat('MMMM yyyy') : null,
                 sortKey: dt.isValid ? dt.toFormat('yyyyMM') : '0',
-                rep1Name: NAME_MAP[String(row['Reported by']).trim()],
-                rep2Name: NAME_MAP[String(row['Reported by2']).trim()],
-                verifName: NAME_MAP[String(row['Verif By']).trim()]
+                rep1ID: String(row['Reported by'] || '').trim(),
+                rep2ID: String(row['Reported by2'] || '').trim(),
+                verifID: String(row['Verif By'] || '').trim()
             };
         }).filter(d => d.monthYear && d['Modality'] !== 'Z');
 
-        const months = [...new Set(data.map(d => d.monthYear))].sort((a, b) => 
-            data.find(d => d.monthYear === a).sortKey - data.find(d => d.monthYear === b).sortKey
+        globalMonths = [...new Set(globalProcessedData.map(d => d.monthYear))].sort((a, b) => 
+            globalProcessedData.find(d => d.monthYear === a).sortKey - globalProcessedData.find(d => d.monthYear === b).sortKey
         );
 
-        // 1. Summary: Monthly Reported Modality 'R'
-        const rData = data.filter(d => d['Modality'] === 'R');
+        // Render Summaries using Name Map
+        const rData = globalProcessedData.filter(d => d['Modality'] === 'R');
+        
         const summaryRepRows = ORDERED_NAMES.map(name => {
             const row = [name];
-            months.forEach(m => {
-                const count = rData.filter(d => (d.rep1Name === name || d.rep2Name === name) && d.monthYear === m).length;
+            const ids = Object.keys(NAME_MAP).filter(key => NAME_MAP[key] === name);
+            globalMonths.forEach(m => {
+                const count = rData.filter(d => (ids.includes(d.rep1ID) || ids.includes(d.rep2ID)) && d.monthYear === m).length;
                 row.push(count);
             });
             return row;
         });
-        renderTable('out-combined-reported', ['Registrar', ...months], summaryRepRows);
+        renderTable('out-combined-reported', ['Registrar', ...globalMonths], summaryRepRows);
 
-        // 2. Summary: Monthly Verified Modality 'R'
         const summaryVerifRows = ORDERED_NAMES.map(name => {
             const row = [name];
-            months.forEach(m => {
-                const count = rData.filter(d => d.verifName === name && d.monthYear === m).length;
+            const ids = Object.keys(NAME_MAP).filter(key => NAME_MAP[key] === name);
+            globalMonths.forEach(m => {
+                const count = rData.filter(d => ids.includes(d.verifID) && d.monthYear === m).length;
                 row.push(count);
             });
             return row;
         });
-        renderTable('out-verif-monthly', ['Registrar', ...months], summaryVerifRows);
+        renderTable('out-verif-monthly', ['Registrar', ...globalMonths], summaryVerifRows);
 
-        // 3. Summary: 7-Day Running
-        const maxDate = DateTime.max(...data.map(d => d.dt));
+        const maxDate = DateTime.max(...globalProcessedData.map(d => d.dt));
         const cutoff = maxDate.minus({ days: 7 });
-        document.getElementById('title-7day').innerText = `3. Prior 7-Day Running Total (Verified 'R' to ${maxDate.toFormat('dd/MM')})`;
+        document.getElementById('title-7day').innerText = `3. Prior 7-Day Running Total (to ${maxDate.toFormat('dd/MM')})`;
         const summary7DayRows = ORDERED_NAMES.map(name => {
-            const count = rData.filter(d => d.verifName === name && d.dt > cutoff).length;
+            const ids = Object.keys(NAME_MAP).filter(key => NAME_MAP[key] === name);
+            const count = rData.filter(d => ids.includes(d.verifID) && d.dt > cutoff).length;
             return [name, count];
         });
         renderTable('out-verif-7day', ['Registrar', 'Count'], summary7DayRows);
 
-        setupIndividualTabs(data);
         document.getElementById('main-ui').classList.remove('hidden');
         document.getElementById('upload-zone').style.display = 'none';
     }
 
-    function renderTable(containerId, headers, rows) {
-        const container = (typeof containerId === 'string') ? document.getElementById(containerId) : containerId;
-        const colTotals = new Array(headers.length).fill(0);
-        const hasHorizontalTotal = !headers.includes('Count'); 
+    // SEARCH LOGIC
+    document.getElementById('searchBtn').addEventListener('click', () => {
+        const id = document.getElementById('searchID').value.trim();
+        if (!id) return;
 
-        let html = `<table><thead><tr>`;
-        headers.forEach(h => html += `<th>${h}</th>`);
-        if(hasHorizontalTotal) html += `<th style="background: var(--total-col-blue)">TOTAL</th>`;
+        const name = NAME_MAP[id] || "Unknown User";
+        document.getElementById('registrar-display-name').innerText = `${name} (ID: ${id})`;
+        
+        const container = document.getElementById('search-tables-container');
+        container.innerHTML = '';
+        document.getElementById('search-results-area').classList.remove('hidden');
+
+        const s1 = globalProcessedData.filter(d => d.rep1ID === id);
+        const s2 = globalProcessedData.filter(d => d.rep2ID === id);
+        const sCombined = globalProcessedData.filter(d => d.rep1ID === id || d.rep2ID === id);
+
+        const createSearchSection = (title, subset, color) => {
+            const h3 = document.createElement('h3');
+            h3.innerText = title;
+            h3.className = 'section-title';
+            h3.style.borderColor = color;
+            container.appendChild(h3);
+
+            const wrapper = document.createElement('div');
+            wrapper.className = 'table-wrapper';
+            container.appendChild(wrapper);
+
+            if (subset.length === 0) {
+                wrapper.innerHTML = "<p style='padding:10px'>No data found for this ID.</p>";
+                return;
+            }
+
+            const mods = [...new Set(globalProcessedData.map(d => d['Modality']))].sort();
+            const rows = globalMonths.map(m => {
+                const r = [m];
+                mods.forEach(mod => r.push(subset.filter(d => d.monthYear === m && d['Modality'] === mod).length));
+                return r;
+            });
+            renderTable(wrapper, ['Month', ...mods], rows);
+        };
+
+        createSearchSection("Primary Reports (Reported By)", s1, 'var(--accent-blue)');
+        createSearchSection("Secondary Reports (Reported By 2)", s2, 'var(--accent-green)');
+        createSearchSection("Total Combined Activity", sCombined, 'var(--accent-purple)');
+    });
+
+    function renderTable(containerId, headers, rows) {
+        const target = (typeof containerId === 'string') ? document.getElementById(containerId) : containerId;
+        const colTotals = new Array(headers.length).fill(0);
+        const hasTotal = !headers.includes('Count');
+
+        let html = `<table><thead><tr>${headers.map(h => `<th>${h}</th>`).join('')}`;
+        if(hasTotal) html += `<th style="background:var(--total-col-blue)">TOTAL</th>`;
         html += `</tr></thead><tbody>`;
 
         rows.forEach(r => {
             let rowSum = 0;
-            html += `<tr>`;
-            r.forEach((cell, idx) => {
-                html += `<td>${cell}</td>`;
-                if(idx > 0) {
-                    colTotals[idx] += (Number(cell) || 0);
-                    rowSum += (Number(cell) || 0);
-                }
-            });
-            if(hasHorizontalTotal) html += `<td class="total-col">${rowSum}</td>`;
+            html += `<tr>${r.map((c, i) => {
+                if(i > 0) { colTotals[i] += (Number(c)||0); rowSum += (Number(c)||0); }
+                return `<td>${c}</td>`;
+            }).join('')}`;
+            if(hasTotal) html += `<td class="total-col">${rowSum}</td>`;
             html += `</tr>`;
         });
 
-        // Footer Row
-        html += `<tr class="total-row"><td>TOTAL</td>`;
-        for(let i=1; i < colTotals.length; i++) html += `<td>${colTotals[i]}</td>`;
-        if(hasHorizontalTotal) html += `<td></td>`; 
+        html += `<tr class="total-row"><td>TOTAL</td>${colTotals.slice(1).map(v => `<td>${v}</td>`).join('')}`;
+        if(hasTotal) html += `<td></td>`;
         html += `</tr></tbody></table>`;
-
-        container.innerHTML = html;
+        target.innerHTML = html;
     }
 
-    function setupIndividualTabs(data) {
-        const tabContainer = document.getElementById('tabContainer');
-        const viewContainer = document.getElementById('individual-view-container');
-        const modalities = [...new Set(data.map(d => d['Modality']))].sort();
-
-        // Clear existing dynamic tabs if processing again
-        document.querySelectorAll('.dyn-tab').forEach(el => el.remove());
-        viewContainer.innerHTML = '';
-
-        ORDERED_NAMES.forEach(name => {
-            const btn = document.createElement('div');
-            btn.className = 'tab-btn dyn-tab';
-            btn.innerText = name;
-            const tabId = `tab-view-${name.replace('.','')}`;
-            btn.onclick = (e) => showTab(tabId, e.target);
-            tabContainer.appendChild(btn);
-
-            const view = document.createElement('div');
-            view.id = tabId;
-            view.className = 'tab-content hidden';
-
-            const s1 = data.filter(d => d.rep1Name === name);
-            const s2 = data.filter(d => d.rep2Name === name);
-            const sCombined = data.filter(d => d.rep1Name === name || d.rep2Name === name);
-
-            const generateSections = (title, subset, color) => {
-                const titleEl = document.createElement('h3');
-                titleEl.className = 'section-title';
-                titleEl.style.borderColor = color;
-                titleEl.innerText = title;
-                view.appendChild(titleEl);
-
-                const wrapper = document.createElement('div');
-                wrapper.className = 'table-wrapper';
-                view.appendChild(wrapper);
-
-                if(subset.length === 0) {
-                    wrapper.innerHTML = "<p style='padding:10px'>No data recorded.</p>";
-                    return;
-                }
-
-                // Table 1: Modality Breakdown
-                const months = [...new Set(subset.map(d => d.monthYear))].sort((a, b) => 
-                    data.find(d => d.monthYear === a).sortKey - data.find(d => d.monthYear === b).sortKey
-                );
-
-                const modRows = months.map(m => {
-                    const r = [m];
-                    modalities.forEach(mod => r.push(subset.filter(d => d.monthYear === m && d['Modality'] === mod).length));
-                    return r;
-                });
-                renderTable(wrapper, ['Month', ...modalities], modRows);
-
-                // Table 2: Examination Breakdown
-                const examTitle = document.createElement('div');
-                examTitle.className = 'exam-title';
-                examTitle.innerText = "Breakdown by Examination Name";
-                view.appendChild(examTitle);
-
-                const examWrapper = document.createElement('div');
-                examWrapper.className = 'table-wrapper';
-                examWrapper.style.maxHeight = "300px"; // Constrain height for exam list
-                view.appendChild(examWrapper);
-
-                const examTypes = [...new Set(subset.map(d => d['Examination'] || 'Unspecified'))].sort();
-                const examRows = examTypes.map(type => {
-                    const count = subset.filter(d => d['Examination'] === type).length;
-                    return [type, count];
-                });
-
-                renderTable(examWrapper, ['Examination Type', 'Count'], examRows);
-            };
-
-            generateSections(`1. Reports as 'Reported By' (Primary)`, s1, 'var(--accent-blue)');
-            generateSections(`2. Reports as 'Reported By 2' (Secondary)`, s2, 'var(--accent-green)');
-            generateSections(`3. Total Studies (Primary + Secondary Combined)`, sCombined, 'var(--accent-purple)');
-
-            viewContainer.appendChild(view);
-        });
-    }
-
-    function showTab(tabId, element) {
+    function showTab(tabId, btn) {
         document.querySelectorAll('.tab-content').forEach(t => t.classList.add('hidden'));
         document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
         document.getElementById(tabId).classList.remove('hidden');
-        element.classList.add('active');
+        btn.classList.add('active');
     }
 </script>
 </body>
