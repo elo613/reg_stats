@@ -1,66 +1,362 @@
-// ... (Insert this updated search logic into the script section)
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Radiology Analytics - Search Focus</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/luxon/3.4.4/luxon.min.js"></script>
+    
+    <style>
+        :root {
+            --primary-bg: #f8f9fa;
+            --accent-blue: #0056b3;
+            --accent-green: #198754;
+            --accent-purple: #6f42c1;
+            --total-yellow: #fefae0;
+            --total-col-blue: #e1f5fe;
+        }
 
+        body {
+            font-family: 'Segoe UI', 'Calibri', sans-serif;
+            background-color: var(--primary-bg);
+            margin: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+
+        #upload-zone {
+            padding: 30px;
+            border: 2px dashed #007bff;
+            text-align: center;
+            margin-bottom: 30px;
+            background: #f0f7ff;
+            border-radius: 8px;
+        }
+
+        .file-inputs {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin: 20px 0;
+        }
+
+        .file-box {
+            background: white;
+            padding: 15px;
+            border: 1px solid #ced4da;
+            border-radius: 6px;
+        }
+
+        button {
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            border: none;
+            transition: 0.2s;
+        }
+
+        #processBtn { background: #007bff; color: white; font-size: 1.1em; }
+        #processBtn:hover { background: #0056b3; }
+
+        .tabs-header {
+            display: flex;
+            gap: 4px;
+            border-bottom: 2px solid #dee2e6;
+            margin-bottom: 20px;
+        }
+        .tab-btn {
+            padding: 10px 18px;
+            background: #e9ecef;
+            border: 1px solid #dee2e6;
+            border-bottom: none;
+            border-radius: 6px 6px 0 0;
+            font-weight: 500;
+        }
+        .tab-btn.active {
+            background: white;
+            border-bottom: 2px solid white;
+            margin-bottom: -2px;
+            color: var(--accent-blue);
+            font-weight: bold;
+        }
+
+        .search-container {
+            background: #f1f3f5;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        #searchID {
+            padding: 10px;
+            width: 250px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        #searchBtn { background: var(--accent-purple); color: white; }
+
+        .table-wrapper { 
+            overflow-x: auto; 
+            max-height: 400px; 
+            overflow-y: auto; 
+            margin-bottom: 30px; 
+            border: 1px solid #dee2e6;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.95em;
+        }
+        th, td {
+            border: 1px solid #dee2e6;
+            padding: 10px;
+            text-align: center;
+            min-width: 80px;
+        }
+        th { background: #f1f3f5; position: sticky; top: 0; z-index: 10; }
+        
+        tr.total-row { background-color: var(--total-yellow) !important; font-weight: bold; }
+        td.total-col { background-color: var(--total-col-blue); font-weight: bold; }
+        
+        .section-title { border-left: 5px solid #0056b3; padding-left: 15px; margin-top: 30px; margin-bottom: 10px; }
+        .exam-header { margin: 10px 0 5px 20px; color: #555; font-size: 1em; font-weight: 600; }
+        .hidden { display: none; }
+        #registrar-display-name { color: var(--accent-purple); font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div id="upload-zone">
+        <h2>Radiology Analytics Dashboard</h2>
+        <div class="file-inputs">
+            <div class="file-box"><label><strong>R1.csv</strong></label><br><br><input type="file" id="csvPicker1" accept=".csv"></div>
+            <div class="file-box"><label><strong>R2.csv</strong></label><br><br><input type="file" id="csvPicker2" accept=".csv"></div>
+        </div>
+        <button id="processBtn">Process Analytics</button>
+    </div>
+
+    <div id="main-ui" class="hidden">
+        <div class="tabs-header">
+            <div class="tab-btn active" onclick="showTab('summary-view', this)">XR Stats Summary</div>
+            <div class="tab-btn" onclick="showTab('search-view', this)">Registrar Search</div>
+        </div>
+
+        <div id="summary-view" class="tab-content">
+            <h2 class="section-title">1. Monthly Total Reported (Modality 'R')</h2>
+            <div id="out-combined-reported" class="table-wrapper"></div>
+            <h2 class="section-title" style="border-color: var(--accent-green);">2. Monthly Total Verified (Modality 'R')</h2>
+            <div id="out-verif-monthly" class="table-wrapper"></div>
+            <h2 class="section-title" style="border-color: var(--accent-blue);" id="title-7day">3. Prior 7-Day Running Total</h2>
+            <div id="out-verif-7day" class="table-wrapper"></div>
+        </div>
+
+        <div id="search-view" class="tab-content hidden">
+            <div class="search-container">
+                <label for="searchID"><strong>Enter Reporter ID:</strong></label>
+                <input type="text" id="searchID" placeholder="e.g. 7659567">
+                <button id="searchBtn">Search Results</button>
+            </div>
+            <div id="search-results-area" class="hidden">
+                <h2 class="section-title" style="border-color: var(--accent-purple);">
+                    Showing Results for: <span id="registrar-display-name"></span>
+                </h2>
+                <div id="search-tables-container"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const NAME_MAP = {
+        "7659567": "E.L", "7668654": "S.R", "7727570": "S.H",
+        "7842120": "Q.O", "7785803": "M.M", "7848633": "K.A",
+        "7846731": "A.O", "7461820": "C.M", "7750701": "S.A"
+    };
+    
+    const ORDERED_NAMES = ["E.L", "S.R", "S.H", "Q.O", "M.M", "K.A", "A.O", "C.M", "S.A"];
+    const DateTime = luxon.DateTime;
+    let globalProcessedData = [];
+    let globalMonths = [];
+
+    document.getElementById('processBtn').addEventListener('click', async function() {
+        const f1 = document.getElementById('csvPicker1').files[0];
+        const f2 = document.getElementById('csvPicker2').files[0];
+        if (!f1 || !f2) return alert("Select both files.");
+
+        const [d1, d2] = await Promise.all([parseFile(f1), parseFile(f2)]);
+        let combined = [...d1, ...d2];
+        const seen = new Set();
+        combined = combined.filter(item => {
+            const acc = item.Accession?.trim();
+            if (!acc || seen.has(acc)) return false;
+            seen.add(acc);
+            return true;
+        });
+
+        processData(combined);
+    });
+
+    function parseFile(file) {
+        return new Promise(res => Papa.parse(file, {header:true, skipEmptyLines:true, complete:r=>res(r.data)}));
+    }
+
+    function processData(rawData) {
+        globalProcessedData = rawData.map(row => {
+            const dt = DateTime.fromFormat(row['Verify Date'], 'd/M/yyyy');
+            return {
+                ...row,
+                dt,
+                monthYear: dt.isValid ? dt.toFormat('MMMM yyyy') : null,
+                sortKey: dt.isValid ? dt.toFormat('yyyyMM') : '0',
+                rep1ID: String(row['Reported by'] || '').trim(),
+                rep2ID: String(row['Reported by2'] || '').trim(),
+                verifID: String(row['Verif By'] || '').trim()
+            };
+        }).filter(d => d.monthYear && d['Modality'] !== 'Z');
+
+        globalMonths = [...new Set(globalProcessedData.map(d => d.monthYear))].sort((a, b) => 
+            globalProcessedData.find(d => d.monthYear === a).sortKey - globalProcessedData.find(d => d.monthYear === b).sortKey
+        );
+
+        renderSummaries();
+        document.getElementById('main-ui').classList.remove('hidden');
+        document.getElementById('upload-zone').style.display = 'none';
+    }
+
+    function renderSummaries() {
+        const rData = globalProcessedData.filter(d => d['Modality'] === 'R');
+        
+        const repRows = ORDERED_NAMES.map(name => {
+            const row = [name];
+            const ids = Object.keys(NAME_MAP).filter(k => NAME_MAP[k] === name);
+            globalMonths.forEach(m => {
+                row.push(rData.filter(d => (ids.includes(d.rep1ID) || ids.includes(d.rep2ID)) && d.monthYear === m).length);
+            });
+            return row;
+        });
+        renderTable('out-combined-reported', ['Registrar', ...globalMonths], repRows);
+
+        const verifRows = ORDERED_NAMES.map(name => {
+            const row = [name];
+            const ids = Object.keys(NAME_MAP).filter(k => NAME_MAP[k] === name);
+            globalMonths.forEach(m => {
+                row.push(rData.filter(d => ids.includes(d.verifID) && d.monthYear === m).length);
+            });
+            return row;
+        });
+        renderTable('out-verif-monthly', ['Registrar', ...globalMonths], verifRows);
+
+        const maxDate = DateTime.max(...globalProcessedData.map(d => d.dt));
+        const cutoff = maxDate.minus({ days: 7 });
+        document.getElementById('title-7day').innerText = `3. Prior 7-Day Running Total (to ${maxDate.toFormat('dd/MM')})`;
+        const s7Rows = ORDERED_NAMES.map(name => {
+            const ids = Object.keys(NAME_MAP).filter(k => NAME_MAP[k] === name);
+            return [name, rData.filter(d => ids.includes(d.verifID) && d.dt > cutoff).length];
+        });
+        renderTable('out-verif-7day', ['Registrar', 'Count'], s7Rows);
+    }
+
+    // SEARCH FUNCTIONALITY
     document.getElementById('searchBtn').addEventListener('click', () => {
         const id = document.getElementById('searchID').value.trim();
         if (!id) return;
 
         const name = NAME_MAP[id] || "Unknown User";
         document.getElementById('registrar-display-name').innerText = `${name} (ID: ${id})`;
-        
         const container = document.getElementById('search-tables-container');
         container.innerHTML = '';
         document.getElementById('search-results-area').classList.remove('hidden');
 
-        const s1 = globalProcessedData.filter(d => d.rep1ID === id);
-        const s2 = globalProcessedData.filter(d => d.rep2ID === id);
-        const sCombined = globalProcessedData.filter(d => d.rep1ID === id || d.rep2ID === id);
+        const subsets = [
+            { title: "1. Reports as 'Reported By' (Primary)", data: globalProcessedData.filter(d => d.rep1ID === id), color: 'var(--accent-blue)' },
+            { title: "2. Reports as 'Reported By 2' (Secondary)", data: globalProcessedData.filter(d => d.rep2ID === id), color: 'var(--accent-green)' },
+            { title: "3. Total Studies (Primary + Secondary Combined)", data: globalProcessedData.filter(d => d.rep1ID === id || d.rep2ID === id), color: 'var(--accent-purple)' }
+        ];
 
-        const createSearchSection = (title, subset, color) => {
+        subsets.forEach(s => {
             const h3 = document.createElement('h3');
-            h3.innerText = title;
             h3.className = 'section-title';
-            h3.style.borderColor = color;
+            h3.style.borderColor = s.color;
+            h3.innerText = s.title;
             container.appendChild(h3);
 
-            const wrapper = document.createElement('div');
-            wrapper.className = 'table-wrapper';
-            container.appendChild(wrapper);
+            const wrap = document.createElement('div');
+            wrap.className = 'table-wrapper';
+            container.appendChild(wrap);
 
-            if (subset.length === 0) {
-                wrapper.innerHTML = "<p style='padding:10px'>No data found for this ID.</p>";
+            if (s.data.length === 0) {
+                wrap.innerHTML = "<p style='padding:10px'>No data available.</p>";
                 return;
             }
 
-            // Table 1: Modality Breakdown
+            // Modality Table
             const mods = [...new Set(globalProcessedData.map(d => d['Modality']))].sort();
             const modRows = globalMonths.map(m => {
                 const r = [m];
-                mods.forEach(mod => r.push(subset.filter(d => d.monthYear === m && d['Modality'] === mod).length));
+                mods.forEach(mod => r.push(s.data.filter(d => d.monthYear === m && d['Modality'] === mod).length));
                 return r;
             });
-            renderTable(wrapper, ['Month', ...mods], modRows);
+            renderTable(wrap, ['Month', ...mods], modRows);
 
-            // Table 2: Examination Type Breakdown (RESTORED)
-            const examTitle = document.createElement('div');
-            examTitle.style = "margin: 10px 0 5px 20px; font-weight: 600; color: #555;";
-            examTitle.innerText = "Breakdown by Examination Name";
-            container.appendChild(examTitle);
+            // Examination Table (Restored)
+            const eHeader = document.createElement('div');
+            eHeader.className = 'exam-header';
+            eHeader.innerText = "Breakdown by Examination Name";
+            container.appendChild(eHeader);
 
-            const examWrapper = document.createElement('div');
-            examWrapper.className = 'table-wrapper';
-            examWrapper.style.maxHeight = "300px"; 
-            container.appendChild(examWrapper);
+            const eWrap = document.createElement('div');
+            eWrap.className = 'table-wrapper';
+            eWrap.style.maxHeight = "250px";
+            container.appendChild(eWrap);
 
-            const examTypes = [...new Set(subset.map(d => d['Examination'] || 'Unspecified'))].sort();
-            const examRows = examTypes.map(type => {
-                const count = subset.filter(d => d['Examination'] === type).length;
-                return [type, count];
-            });
-
-            renderTable(examWrapper, ['Examination Type', 'Count'], examRows);
-        };
-
-        createSearchSection("Primary Reports (Reported By)", s1, 'var(--accent-blue)');
-        createSearchSection("Secondary Reports (Reported By 2)", s2, 'var(--accent-green)');
-        createSearchSection("Total Combined Activity", sCombined, 'var(--accent-purple)');
+            const types = [...new Set(s.data.map(d => d['Examination'] || 'Unspecified'))].sort();
+            const eRows = types.map(t => [t, s.data.filter(d => d['Examination'] === t).length]);
+            renderTable(eWrap, ['Examination Type', 'Count'], eRows);
+        });
     });
+
+    function renderTable(target, headers, rows) {
+        const container = (typeof target === 'string') ? document.getElementById(target) : target;
+        const colTotals = new Array(headers.length).fill(0);
+        const hasTotal = !headers.includes('Count');
+
+        let html = `<table><thead><tr>${headers.map(h => `<th>${h}</th>`).join('')}`;
+        if(hasTotal) html += `<th style="background:var(--total-col-blue)">TOTAL</th>`;
+        html += `</tr></thead><tbody>`;
+
+        rows.forEach(r => {
+            let rowSum = 0;
+            html += `<tr>${r.map((c, i) => {
+                if(i > 0) { colTotals[i] += (Number(c)||0); rowSum += (Number(c)||0); }
+                return `<td>${c}</td>`;
+            }).join('')}`;
+            if(hasTotal) html += `<td class="total-col">${rowSum}</td>`;
+            html += `</tr>`;
+        });
+
+        html += `<tr class="total-row"><td>TOTAL</td>${colTotals.slice(1).map(v => `<td>${v}</td>`).join('')}`;
+        if(hasTotal) html += `<td></td>`;
+        html += `</tr></tbody></table>`;
+        container.innerHTML = html;
+    }
+
+    function showTab(id, el) {
+        document.querySelectorAll('.tab-content').forEach(t => t.classList.add('hidden'));
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById(id).classList.remove('hidden');
+        el.classList.add('active');
+    }
+</script>
+</body>
+</html>
