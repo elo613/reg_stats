@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en-GB">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -238,6 +238,7 @@
     function renderSummaries() {
         const rData = globalProcessedData.filter(d => d['Modality'] === 'R');
         
+        // 1. Monthly Total Reported
         const repRows = ORDERED_NAMES.map(name => {
             const row = [name];
             const ids = Object.keys(NAME_MAP).filter(k => NAME_MAP[k] === name);
@@ -248,6 +249,7 @@
         });
         renderTable('out-combined-reported', ['Registrar', ...globalMonths], repRows);
 
+        // 2. Monthly Total Verified
         const verifRows = ORDERED_NAMES.map(name => {
             const row = [name];
             const ids = Object.keys(NAME_MAP).filter(k => NAME_MAP[k] === name);
@@ -258,14 +260,26 @@
         });
         renderTable('out-verif-monthly', ['Registrar', ...globalMonths], verifRows);
 
+        // 3. Prior 7-Day Running Total (Updated to show Verified vs Reported)
         const maxDate = DateTime.max(...globalProcessedData.map(d => d.dt));
         const cutoff = maxDate.minus({ days: 7 });
-        document.getElementById('title-7day').innerText = `3. Prior 7-Day Running Total (to ${maxDate.toFormat('dd/MM')})`;
+        document.getElementById('title-7day').innerText = `3. Prior 7-Day Running Total (to ${maxDate.toFormat('dd/MM/yyyy')})`;
+        
         const s7Rows = ORDERED_NAMES.map(name => {
             const ids = Object.keys(NAME_MAP).filter(k => NAME_MAP[k] === name);
-            return [name, rData.filter(d => ids.includes(d.verifID) && d.dt > cutoff).length];
+            
+            // Count verified in last 7 days
+            const verifiedCount = rData.filter(d => ids.includes(d.verifID) && d.dt > cutoff).length;
+            
+            // Count reported (Primary or Secondary) in last 7 days
+            const reportedCount = rData.filter(d => (ids.includes(d.rep1ID) || ids.includes(d.rep2ID)) && d.dt > cutoff).length;
+            
+            return [name, verifiedCount, reportedCount];
         });
-        renderTable('out-verif-7day', ['Registrar', 'Count'], s7Rows);
+        
+        // Pass "Count" in headers to prevent the generic "TOTAL" sum column if desired, 
+        // but here we use specific names to differentiate.
+        renderTable('out-verif-7day', ['Registrar', 'Verified', 'Reported (R1/R2)'], s7Rows);
     }
 
     // SEARCH FUNCTIONALITY
@@ -310,7 +324,7 @@
             });
             renderTable(wrap, ['Month', ...mods], modRows);
 
-            // Examination Table (Restored)
+            // Examination Table
             const eHeader = document.createElement('div');
             eHeader.className = 'exam-header';
             eHeader.innerText = "Breakdown by Examination Name";
@@ -330,24 +344,29 @@
     function renderTable(target, headers, rows) {
         const container = (typeof target === 'string') ? document.getElementById(target) : target;
         const colTotals = new Array(headers.length).fill(0);
-        const hasTotal = !headers.includes('Count');
+        
+        // If "Count" is in the header, we skip the row-sum "TOTAL" column
+        const hasRowTotal = !headers.some(h => h.includes('Count'));
 
         let html = `<table><thead><tr>${headers.map(h => `<th>${h}</th>`).join('')}`;
-        if(hasTotal) html += `<th style="background:var(--total-col-blue)">TOTAL</th>`;
+        if(hasRowTotal) html += `<th style="background:var(--total-col-blue)">TOTAL</th>`;
         html += `</tr></thead><tbody>`;
 
         rows.forEach(r => {
             let rowSum = 0;
             html += `<tr>${r.map((c, i) => {
-                if(i > 0) { colTotals[i] += (Number(c)||0); rowSum += (Number(c)||0); }
+                if(i > 0) { 
+                    colTotals[i] += (Number(c)||0); 
+                    rowSum += (Number(c)||0); 
+                }
                 return `<td>${c}</td>`;
             }).join('')}`;
-            if(hasTotal) html += `<td class="total-col">${rowSum}</td>`;
+            if(hasRowTotal) html += `<td class="total-col">${rowSum}</td>`;
             html += `</tr>`;
         });
 
         html += `<tr class="total-row"><td>TOTAL</td>${colTotals.slice(1).map(v => `<td>${v}</td>`).join('')}`;
-        if(hasTotal) html += `<td></td>`;
+        if(hasRowTotal) html += `<td></td>`;
         html += `</tr></tbody></table>`;
         container.innerHTML = html;
     }
