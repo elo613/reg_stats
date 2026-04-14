@@ -217,7 +217,6 @@
 
     function processData(rawData) {
         globalProcessedData = rawData.map(row => {
-            // Logic updated to use 'Date reported'
             const dt = DateTime.fromFormat(row['Date reported'], 'd/M/yyyy');
             return {
                 ...row,
@@ -243,7 +242,7 @@
     function renderSummaries() {
         const rData = globalProcessedData.filter(d => d['Modality'] === 'R');
         
-        // 1. Monthly Total Reported (Primary or Secondary)
+        // 1. Monthly Total Reported
         const repRows = ORDERED_NAMES.map(name => {
             const row = [name];
             const ids = Object.keys(NAME_MAP).filter(k => NAME_MAP[k] === name);
@@ -254,7 +253,7 @@
         });
         renderTable('out-combined-reported', ['Registrar', ...globalMonths], repRows);
 
-        // 2. Monthly Total Verified (Grouping by Date reported)
+        // 2. Monthly Total Verified
         const verifRows = ORDERED_NAMES.map(name => {
             const row = [name];
             const ids = Object.keys(NAME_MAP).filter(k => NAME_MAP[k] === name);
@@ -265,7 +264,7 @@
         });
         renderTable('out-verif-monthly', ['Registrar', ...globalMonths], verifRows);
 
-        // 3. Prior 7-Day Running Total (Based on Date reported)
+        // 3. Prior 7-Day Running Total (Updated to show TOTAL column)
         const maxDate = DateTime.max(...globalProcessedData.map(d => d.dt));
         const cutoff = maxDate.minus({ days: 7 });
         document.getElementById('title-7day').innerText = `3. Activity in 7 Days prior to ${maxDate.toFormat('dd/MM/yyyy')}`;
@@ -273,10 +272,7 @@
         const s7Rows = ORDERED_NAMES.map(name => {
             const ids = Object.keys(NAME_MAP).filter(k => NAME_MAP[k] === name);
             
-            // Count reports verified in last 7 days
             const verifiedCount = rData.filter(d => ids.includes(d.verifID) && d.dt > cutoff).length;
-            
-            // Count "Typed" ONLY if NOT the verifier
             const typedCount = rData.filter(d => 
                 ids.includes(d.typedID) && 
                 !ids.includes(d.verifID) && 
@@ -286,7 +282,8 @@
             return [name, verifiedCount, typedCount];
         });
         
-        renderTable('out-verif-7day', ['Registrar', 'Verified', 'Typed (Diff Verifier)'], s7Rows, false);
+        // Final parameter changed to 'true' to enable the Row Total column
+        renderTable('out-verif-7day', ['Registrar', 'Verified', 'Typed (Diff Verifier)'], s7Rows, true);
     }
 
     // SEARCH FUNCTIONALITY
@@ -322,7 +319,6 @@
                 return;
             }
 
-            // Modality Table
             const mods = [...new Set(globalProcessedData.map(d => d['Modality']))].sort();
             const modRows = globalMonths.map(m => {
                 const r = [m];
@@ -331,7 +327,6 @@
             });
             renderTable(wrap, ['Month Reported', ...mods], modRows);
 
-            // Examination Table
             const eHeader = document.createElement('div');
             eHeader.className = 'exam-header';
             eHeader.innerText = "Breakdown by Examination Name";
@@ -374,7 +369,10 @@
         });
 
         html += `<tr class="total-row"><td>TOTAL</td>${colTotals.slice(1).map(v => `<td>${v}</td>`).join('')}`;
-        if(hasRowTotal) html += `<td></td>`;
+        if(hasRowTotal) {
+            const grandTotal = colTotals.slice(1).reduce((a, b) => a + b, 0);
+            html += `<td class="total-col">${grandTotal}</td>`;
+        }
         html += `</tr></tbody></table>`;
         container.innerHTML = html;
     }
