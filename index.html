@@ -139,6 +139,7 @@
 <div class="container">
     <div id="upload-zone">
         <h2>Radiology Analytics Dashboard</h2>
+        <p>Processing CSV files with updated "Typed by" logic.</p>
         <div class="file-inputs">
             <div class="file-box"><label><strong>R1.csv</strong></label><br><br><input type="file" id="csvPicker1" accept=".csv"></div>
             <div class="file-box"><label><strong>R2.csv</strong></label><br><br><input type="file" id="csvPicker2" accept=".csv"></div>
@@ -222,7 +223,8 @@
                 sortKey: dt.isValid ? dt.toFormat('yyyyMM') : '0',
                 rep1ID: String(row['Reported by'] || '').trim(),
                 rep2ID: String(row['Reported by2'] || '').trim(),
-                verifID: String(row['Verif By'] || '').trim()
+                verifID: String(row['Verif By'] || '').trim(),
+                typedID: String(row['Typed by'] || '').trim()
             };
         }).filter(d => d.monthYear && d['Modality'] !== 'Z');
 
@@ -238,7 +240,7 @@
     function renderSummaries() {
         const rData = globalProcessedData.filter(d => d['Modality'] === 'R');
         
-        // 1. Monthly Total Reported
+        // 1. Monthly Total Reported (Based on Reported By columns)
         const repRows = ORDERED_NAMES.map(name => {
             const row = [name];
             const ids = Object.keys(NAME_MAP).filter(k => NAME_MAP[k] === name);
@@ -260,7 +262,7 @@
         });
         renderTable('out-verif-monthly', ['Registrar', ...globalMonths], verifRows);
 
-        // 3. Prior 7-Day Running Total
+        // 3. Prior 7-Day Running Total (Logic updated to use 'Typed by')
         const maxDate = DateTime.max(...globalProcessedData.map(d => d.dt));
         const cutoff = maxDate.minus({ days: 7 });
         document.getElementById('title-7day').innerText = `3. Prior 7-Day Running Total (to ${maxDate.toFormat('dd/MM/yyyy')})`;
@@ -271,17 +273,17 @@
             // Count verified in last 7 days
             const verifiedCount = rData.filter(d => ids.includes(d.verifID) && d.dt > cutoff).length;
             
-            // Count reported (R1 or R2) ONLY if verified by someone else
-            const reportedCount = rData.filter(d => 
-                (ids.includes(d.rep1ID) || ids.includes(d.rep2ID)) && 
+            // Count "Typed" ONLY if NOT the verifier
+            const typedCount = rData.filter(d => 
+                ids.includes(d.typedID) && 
                 !ids.includes(d.verifID) && 
                 d.dt > cutoff
             ).length;
             
-            return [name, verifiedCount, reportedCount];
+            return [name, verifiedCount, typedCount];
         });
         
-        renderTable('out-verif-7day', ['Registrar', 'Verified', 'Reported (Diff Verifier)'], s7Rows, false);
+        renderTable('out-verif-7day', ['Registrar', 'Verified', 'Typed (Diff Verifier)'], s7Rows, false);
     }
 
     // SEARCH FUNCTIONALITY
