@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Radiology Analytics - Search Focus</title>
+    <title>Radiology Analytics - Reporting Focus</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/luxon/3.4.4/luxon.min.js"></script>
     
@@ -139,7 +139,7 @@
 <div class="container">
     <div id="upload-zone">
         <h2>Radiology Analytics Dashboard</h2>
-        <p>Processing CSV files with updated "Typed by" logic.</p>
+        <p>Analysing reports based on <strong>Date reported</strong>.</p>
         <div class="file-inputs">
             <div class="file-box"><label><strong>R1.csv</strong></label><br><br><input type="file" id="csvPicker1" accept=".csv"></div>
             <div class="file-box"><label><strong>R2.csv</strong></label><br><br><input type="file" id="csvPicker2" accept=".csv"></div>
@@ -154,11 +154,13 @@
         </div>
 
         <div id="summary-view" class="tab-content">
-            <h2 class="section-title">1. Monthly Total Reported (Modality 'R')</h2>
+            <h2 class="section-title">1. Monthly Total Reported (Primary/Secondary)</h2>
             <div id="out-combined-reported" class="table-wrapper"></div>
-            <h2 class="section-title" style="border-color: var(--accent-green);">2. Monthly Total Verified (Modality 'R')</h2>
+            
+            <h2 class="section-title" style="border-color: var(--accent-green);">2. Monthly Total Verified (As Verifier)</h2>
             <div id="out-verif-monthly" class="table-wrapper"></div>
-            <h2 class="section-title" style="border-color: var(--accent-blue);" id="title-7day">3. Prior 7-Day Running Total</h2>
+            
+            <h2 class="section-title" style="border-color: var(--accent-blue);" id="title-7day">3. Prior 7-Day Activity</h2>
             <div id="out-verif-7day" class="table-wrapper"></div>
         </div>
 
@@ -215,7 +217,8 @@
 
     function processData(rawData) {
         globalProcessedData = rawData.map(row => {
-            const dt = DateTime.fromFormat(row['Verify Date'], 'd/M/yyyy');
+            // Logic updated to use 'Date reported'
+            const dt = DateTime.fromFormat(row['Date reported'], 'd/M/yyyy');
             return {
                 ...row,
                 dt,
@@ -240,7 +243,7 @@
     function renderSummaries() {
         const rData = globalProcessedData.filter(d => d['Modality'] === 'R');
         
-        // 1. Monthly Total Reported (Based on Reported By columns)
+        // 1. Monthly Total Reported (Primary or Secondary)
         const repRows = ORDERED_NAMES.map(name => {
             const row = [name];
             const ids = Object.keys(NAME_MAP).filter(k => NAME_MAP[k] === name);
@@ -251,7 +254,7 @@
         });
         renderTable('out-combined-reported', ['Registrar', ...globalMonths], repRows);
 
-        // 2. Monthly Total Verified
+        // 2. Monthly Total Verified (Grouping by Date reported)
         const verifRows = ORDERED_NAMES.map(name => {
             const row = [name];
             const ids = Object.keys(NAME_MAP).filter(k => NAME_MAP[k] === name);
@@ -262,15 +265,15 @@
         });
         renderTable('out-verif-monthly', ['Registrar', ...globalMonths], verifRows);
 
-        // 3. Prior 7-Day Running Total (Logic updated to use 'Typed by')
+        // 3. Prior 7-Day Running Total (Based on Date reported)
         const maxDate = DateTime.max(...globalProcessedData.map(d => d.dt));
         const cutoff = maxDate.minus({ days: 7 });
-        document.getElementById('title-7day').innerText = `3. Prior 7-Day Running Total (to ${maxDate.toFormat('dd/MM/yyyy')})`;
+        document.getElementById('title-7day').innerText = `3. Activity in 7 Days prior to ${maxDate.toFormat('dd/MM/yyyy')}`;
         
         const s7Rows = ORDERED_NAMES.map(name => {
             const ids = Object.keys(NAME_MAP).filter(k => NAME_MAP[k] === name);
             
-            // Count verified in last 7 days
+            // Count reports verified in last 7 days
             const verifiedCount = rData.filter(d => ids.includes(d.verifID) && d.dt > cutoff).length;
             
             // Count "Typed" ONLY if NOT the verifier
@@ -298,9 +301,9 @@
         document.getElementById('search-results-area').classList.remove('hidden');
 
         const subsets = [
-            { title: "1. Reports as 'Reported By' (Primary)", data: globalProcessedData.filter(d => d.rep1ID === id), colour: 'var(--accent-blue)' },
-            { title: "2. Reports as 'Reported By 2' (Secondary)", data: globalProcessedData.filter(d => d.rep2ID === id), colour: 'var(--accent-green)' },
-            { title: "3. Total Studies (Primary + Secondary Combined)", data: globalProcessedData.filter(d => d.rep1ID === id || d.rep2ID === id), colour: 'var(--accent-purple)' }
+            { title: "1. Primary Reporter (Reported By)", data: globalProcessedData.filter(d => d.rep1ID === id), colour: 'var(--accent-blue)' },
+            { title: "2. Secondary Reporter (Reported By 2)", data: globalProcessedData.filter(d => d.rep2ID === id), colour: 'var(--accent-green)' },
+            { title: "3. Total Involvement (Combined)", data: globalProcessedData.filter(d => d.rep1ID === id || d.rep2ID === id), colour: 'var(--accent-purple)' }
         ];
 
         subsets.forEach(s => {
@@ -326,7 +329,7 @@
                 mods.forEach(mod => r.push(s.data.filter(d => d.monthYear === m && d['Modality'] === mod).length));
                 return r;
             });
-            renderTable(wrap, ['Month', ...mods], modRows);
+            renderTable(wrap, ['Month Reported', ...mods], modRows);
 
             // Examination Table
             const eHeader = document.createElement('div');
