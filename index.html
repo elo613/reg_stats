@@ -126,7 +126,7 @@
 <div class="container">
     <div id="upload-zone">
         <h2>Radiology Analytics Dashboard</h2>
-        <p>Analysing reports based on <strong>Date reported</strong>. <br><small>Note: Exam codes ending in 'B' for modality 'R' add +2 to the total.</small></p>
+        <p>Analysing reports based on <strong>Date reported</strong>. <br><small>Rule: Modality 'R' with Exam Code ending in 'B' counts as <strong>2</strong>; others count as 1.</small></p>
         <div class="file-inputs">
             <div class="file-box"><label><strong>R1.csv</strong></label><br><br><input type="file" id="csvPicker1" accept=".csv"></div>
             <div class="file-box"><label><strong>R2.csv</strong></label><br><br><input type="file" id="csvPicker2" accept=".csv"></div>
@@ -180,13 +180,14 @@
     let globalProcessedData = [];
     let globalMonths = [];
 
-    // --- WEIGHTING LOGIC ---
-    // Returns 3 if Modality is 'R' and Exam Code ends with 'B', otherwise 1.
+    // --- UPDATED WEIGHTING LOGIC ---
     function getWeightedValue(row) {
         const modality = String(row['Modality'] || '').trim();
         const examCode = String(row['Exam Code'] || '').trim();
+        
+        // If Modality is 'R' and Exam Code ends with 'B', count as 2.
         if (modality === 'R' && examCode.endsWith('B')) {
-            return 3;
+            return 2;
         }
         return 1;
     }
@@ -307,7 +308,7 @@
             const h3 = document.createElement('h3');
             h3.className = 'section-title';
             h3.style.borderColor = s.colour;
-            h3.innerText = s.title + " (Weighted totals)";
+            h3.innerText = s.title + " (Weighted)";
             container.appendChild(h3);
 
             const wrap = document.createElement('div');
@@ -345,7 +346,7 @@
                 const matches = s.data.filter(d => d['Examination'] === t);
                 return [t, calculateWeightedSum(matches)];
             });
-            renderTable(eWrap, ['Examination Type', 'Weighted Count'], eRows);
+            renderTable(eWrap, ['Examination Type', 'Weighted Value'], eRows);
         });
     });
 
@@ -355,7 +356,7 @@
         
         const hasRowTotal = (showRowTotal !== null) 
             ? showRowTotal 
-            : !headers.some(h => h.includes('Count'));
+            : !headers.some(h => h.includes('Count') || h.includes('Value'));
 
         let html = `<table><thead><tr>${headers.map(h => `<th>${h}</th>`).join('')}`;
         if(hasRowTotal) html += `<th style="background:var(--total-col-blue)">TOTAL</th>`;
