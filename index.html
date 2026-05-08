@@ -126,7 +126,8 @@
 <div class="container">
     <div id="upload-zone">
         <h2>Radiology Analytics Dashboard</h2>
-        <p>Analysing reports based on <strong>Date reported</strong>. <br><small>Rule: Modality 'R' with Exam Code ending in 'B' counts as <strong>2</strong>; others count as 1.</small></p>
+        <p>Analysing reports based on <strong>Date reported</strong>. <br>
+        <small>Rule: If <strong>Examination</strong> ends in 'B' and Modality is 'R', report counts as <strong>2</strong>.</small></p>
         <div class="file-inputs">
             <div class="file-box"><label><strong>R1.csv</strong></label><br><br><input type="file" id="csvPicker1" accept=".csv"></div>
             <div class="file-box"><label><strong>R2.csv</strong></label><br><br><input type="file" id="csvPicker2" accept=".csv"></div>
@@ -183,10 +184,10 @@
     // --- UPDATED WEIGHTING LOGIC ---
     function getWeightedValue(row) {
         const modality = String(row['Modality'] || '').trim();
-        const examCode = String(row['Exam Code'] || '').trim();
+        // Look at 'Examination' column as per request
+        const examination = String(row['Examination'] || '').trim();
         
-        // If Modality is 'R' and Exam Code ends with 'B', count as 2.
-        if (modality === 'R' && examCode.endsWith('B')) {
+        if (modality === 'R' && examination.endsWith('B')) {
             return 2;
         }
         return 1;
@@ -245,7 +246,6 @@
     function renderSummaries() {
         const rData = globalProcessedData.filter(d => d['Modality'] === 'R');
         
-        // 1. Monthly Total Reported
         const repRows = ORDERED_NAMES.map(name => {
             const row = [name];
             const ids = Object.keys(NAME_MAP).filter(k => NAME_MAP[k] === name);
@@ -257,7 +257,6 @@
         });
         renderTable('out-combined-reported', ['Registrar', ...globalMonths], repRows);
 
-        // 2. Monthly Total Verified
         const verifRows = ORDERED_NAMES.map(name => {
             const row = [name];
             const ids = Object.keys(NAME_MAP).filter(k => NAME_MAP[k] === name);
@@ -269,7 +268,6 @@
         });
         renderTable('out-verif-monthly', ['Registrar', ...globalMonths], verifRows);
 
-        // 3. Prior 7-Day Activity
         const maxDate = DateTime.max(...globalProcessedData.map(d => d.dt));
         const cutoff = maxDate.minus({ days: 7 });
         document.getElementById('title-7day').innerText = `3. Activity in 7 Days prior to ${maxDate.toFormat('dd/MM/yyyy')} (Weighted)`;
@@ -287,7 +285,6 @@
         renderTable('out-verif-7day', ['Registrar', 'Verified', 'Drafted for checking'], s7Rows, true);
     }
 
-    // SEARCH FUNCTIONALITY
     document.getElementById('searchBtn').addEventListener('click', () => {
         const id = document.getElementById('searchID').value.trim();
         if (!id) return;
