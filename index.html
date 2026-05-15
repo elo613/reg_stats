@@ -169,11 +169,12 @@
 </div>
 
 <script>
+    // Updated NAME_MAP to include both numbers for A.K
     const NAME_MAP = {
         "7659567": "E.L", "7668654": "S.R", "7727570": "S.H",
         "7842120": "Q.O", "7785803": "M.M", "7848633": "K.A",
         "7846731": "A.O", "7461820": "C.M", "7750701": "S.A",
-        "C7563004": "A.K"
+        "C7563004": "A.K", "7563004": "A.K"
     };
     
     const ORDERED_NAMES = ["E.L", "S.R", "S.H", "A.K", "Q.O", "M.M", "K.A", "A.O", "C.M", "S.A"];
@@ -181,15 +182,10 @@
     let globalProcessedData = [];
     let globalMonths = [];
 
-    // --- UPDATED WEIGHTING LOGIC ---
     function getWeightedValue(row) {
         const modality = String(row['Modality'] || '').trim();
-        // Look at 'Examination' column as per request
         const examination = String(row['Examination'] || '').trim();
-        
-        if (modality === 'R' && examination.endsWith('B')) {
-            return 2;
-        }
+        if (modality === 'R' && examination.endsWith('B')) return 2;
         return 1;
     }
 
@@ -295,10 +291,13 @@
         container.innerHTML = '';
         document.getElementById('search-results-area').classList.remove('hidden');
 
+        // Logic to include both A.K IDs in search results if searching for A.K
+        const linkedIDs = Object.keys(NAME_MAP).filter(k => NAME_MAP[k] === name);
+
         const subsets = [
-            { title: "1. Primary Reporter (Reported By)", data: globalProcessedData.filter(d => d.rep1ID === id), colour: 'var(--accent-blue)' },
-            { title: "2. Secondary Reporter (Reported By 2)", data: globalProcessedData.filter(d => d.rep2ID === id), colour: 'var(--accent-green)' },
-            { title: "3. Total Involvement (Combined)", data: globalProcessedData.filter(d => d.rep1ID === id || d.rep2ID === id), colour: 'var(--accent-purple)' }
+            { title: "1. Primary Reporter (Reported By)", data: globalProcessedData.filter(d => linkedIDs.includes(d.rep1ID)), colour: 'var(--accent-blue)' },
+            { title: "2. Secondary Reporter (Reported By 2)", data: globalProcessedData.filter(d => linkedIDs.includes(d.rep2ID)), colour: 'var(--accent-green)' },
+            { title: "3. Total Involvement (Combined)", data: globalProcessedData.filter(d => linkedIDs.includes(d.rep1ID) || linkedIDs.includes(d.rep2ID)), colour: 'var(--accent-purple)' }
         ];
 
         subsets.forEach(s => {
